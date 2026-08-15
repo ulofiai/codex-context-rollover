@@ -1,78 +1,126 @@
 # Codex Context Rollover
 
+> Lossless, one-command handoff after repeated Codex compaction.
+
+[![Cross-platform verification](https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml/badge.svg)](https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 [繁體中文](README.zh-TW.md)
 
-A small, native Codex plugin that records a verifiable checkpoint whenever Codex compacts a task. Starting with the second compaction in the same task, it recommends `/new` before repeated lossy summaries cause context distortion or turn objective A into outcome B.
+Codex can compact a long-running task more than once. Repeated summaries can drop constraints or blur the original objective, while the task still looks normal. Codex Context Rollover adds the missing transition signal:
 
-It is deliberately not a guardrail: the hook always returns `continue: true`. It never blocks compaction, stops a task, rewrites a prompt, or silently carries stale context into a new task.
+**compaction #2 → exact transcript snapshot → `/clear` → clean session receives exact user anchors once**
 
-## Install on a new computer
+No extra AI summary is generated during rollover. The handoff is anchored to verbatim original and recent user messages, so objective A is not reinterpreted into B by another summarization pass. There is no polling, prompt wrapper, background service, npm package, or cloud account; the plugin uses only Node.js built-in modules.
 
-Requirements:
+## The gap it fills
 
-- Codex CLI or Codex desktop with plugin and hook support
-- Node.js 20 or newer available as `node`
-- Git
+| Codex alone | With Context Rollover |
+| --- | --- |
+| A compaction happens and work continues | The exact compaction count is tracked per task |
+| The next continuation depends on another summary | Compaction #2 saves an exact byte-for-byte transcript snapshot |
+| Clearing means manually rebuilding context | `/clear` receives the original and latest user-message anchors automatically |
+| A normal new task can accidentally inherit stale intent | Only explicit `source: clear` consumes the short-lived handoff; `/new` receives nothing |
+| Old recovery data can accumulate | Snapshot retention and handoff expiry clean themselves automatically |
 
-Add this repository as a Codex marketplace, then install the plugin:
+The default second-compaction message is intentionally direct:
+
+> Compaction #2: a lossless local rollover snapshot is armed. Run `/clear` within 30 minutes for a one-time handoff into a clean session. `/new` stays unrelated and receives no automatic carry-over.
+
+This is a **handoff, not a guardrail**. Every result contains `continue: true`. It does not stop compaction, interrupt tools, rewrite prompts, or inject an old objective into an ordinary new task.
+
+```text
+PostCompact #2
+    └─ exact local snapshot + SHA-256 + verbatim user anchors
+         └─ short-lived, single-use handoff armed
+              ├─ /clear  → clean session receives handoff once
+              └─ /new    → receives nothing; remains unrelated
+```
+
+## Install on a clean computer
+
+Requirements: Codex with plugin/hooks support, Git, and Node.js 20 or newer. `npm install` is not used.
 
 ```shell
 codex plugin marketplace add ulofiai/codex-context-rollover
 codex plugin add codex-context-rollover@codex-context-rollover
 ```
 
-Restart Codex or open a new task. Run `/hooks` once and review/trust the plugin hook. Codex intentionally does not auto-trust third-party command hooks.
+Restart Codex or open a new task, then run `/hooks` once to review and trust the command hook. Codex intentionally requires trust for third-party command hooks.
 
-Hooks are enabled by default. If they were disabled on the new computer, set this in `~/.codex/config.toml`:
+That is the entire installation. There are no machine-specific paths, project files, credentials, databases, or previous state to migrate.
 
-```toml
-[features]
-hooks = true
+## What is recorded
+
+After every automatic or manual compaction, the plugin writes state under Codex's writable `${PLUGIN_DATA}` directory. From the configured threshold onward, it also saves an exact transcript snapshot and arms a workspace-scoped handoff:
+
+```text
+sessions/<sha256-of-session-id>/
+├── state.json
+├── 0002-<utc-timestamp>-<nonce>.json
+└── 0002-<utc-timestamp>-<nonce>.transcript.jsonl
+pending/
+└── <sha256-of-working-directory>.json
 ```
 
-No machine-specific paths, existing project files, credentials, or prior state are required. Codex expands `${PLUGIN_ROOT}` to the installed plugin and provides `${PLUGIN_DATA}` as its writable data directory.
+Each checkpoint records:
 
-## What happens
+- compaction count and timestamp;
+- transcript path and captured byte boundary;
+- SHA-256 of the transcript up to that boundary;
+- trigger, turn ID, and working directory.
 
-1. Codex emits `PostCompact` after an automatic or manual compaction.
-2. The plugin hashes the transcript up to its captured byte boundary and writes a small JSON checkpoint under `${PLUGIN_DATA}/sessions/<hashed-session-id>/`.
-3. The first successful compaction is recorded silently.
-4. The second and later compactions display a `/new` recommendation.
-5. A recording error is surfaced immediately, but the task is never blocked.
+The pending handoff additionally stores the exact original and recent user-message anchors needed for one-time continuity.
 
-Each checkpoint contains the local transcript path, byte length, SHA-256 digest, compaction count, timestamp, trigger, turn ID, and working directory. It does not copy the transcript content. The original Codex task remains the source record and stays available after `/new`.
+The threshold snapshot is a **byte-for-byte local copy** up to the captured boundary. It never leaves the computer. Only the newest configured number of snapshots are retained, and the pending handoff expires automatically.
 
-The session ID is SHA-256 hashed before it is used as a directory name. Runtime records remain local and are never written into this Git repository.
+## What it solves—and what it does not
+
+It solves the rollover problem without asking another model summary to summarize an already summarized task. `/clear` creates a genuinely clean Codex session, while `SessionStart source: clear` provides a safe, explicit signal to inject the single-use handoff. Verbatim user-message anchors preserve the original objective and latest constraints; the lossless snapshot remains available for evidence.
+
+It does not click `/clear` for you or silently continue through `/new`. That one explicit command is the consent boundary that prevents a pending objective from leaking into an unrelated task.
+
+### Why `/clear`, not `/new`
+
+Codex exposes `/clear` as `SessionStart source: clear`, while an ordinary new task starts separately. Context Rollover matches only the explicit `clear` source, the same working directory, a short expiry, and one unconsumed handoff. That native distinction is what makes automatic continuation possible without globally guessing which old task a new conversation belongs to. See the [official Codex hooks event reference](https://learn.chatgpt.com/docs/hooks#sessionstart).
 
 ## Configuration
 
-Optional environment variables:
-
-| Variable | Default | Purpose |
+| Environment variable | Default | Purpose |
 | --- | --- | --- |
-| `CODEX_CONTEXT_ROLLOVER_THRESHOLD` | `2` | First compaction count that displays the `/new` reminder |
-| `CODEX_CONTEXT_ROLLOVER_LOCALE` | `zh-TW` | Use `en` for English messages |
-| `CODEX_CONTEXT_ROLLOVER_DATA` | Codex `${PLUGIN_DATA}` | Test/development-only data-directory override |
+| `CODEX_CONTEXT_ROLLOVER_THRESHOLD` | `2` | First compaction count that arms the `/clear` handoff |
+| `CODEX_CONTEXT_ROLLOVER_LOCALE` | `zh-TW` | Set to `en` for English messages |
+| `CODEX_CONTEXT_ROLLOVER_DATA` | Codex `${PLUGIN_DATA}` | Data-directory override for isolated testing |
+| `CODEX_CONTEXT_ROLLOVER_HANDOFF_TTL_MINUTES` | `30` | How long `/clear` may consume the one-time handoff |
+| `CODEX_CONTEXT_ROLLOVER_SNAPSHOT_RETENTION` | `2` | Lossless snapshots retained per source session |
 
-## Updating or removing
+## Privacy and failure behavior
 
-Use the Codex plugin commands available in your installed version:
+- All runtime records and lossless snapshots stay on the local computer.
+- Session IDs are SHA-256 hashed before becoming directory names.
+- No network request, telemetry, token, or account is used.
+- Atomic writes plus session and workspace locks protect concurrent state updates.
+- Expired, consumed, or excess handoff data is not replayed.
+- Recording errors are reported, but the task always continues.
+
+## Verification
+
+The repository tests the real installed hook behavior—not a mock—on Windows, macOS, and Linux. Coverage includes lossless snapshots, exact-anchor extraction, one-time `/clear` consumption, `/new`/startup isolation, expiry, automatic retention, recording failure, and per-session counting.
+
+For maintainers, verification uses Node directly:
 
 ```shell
-codex plugin list
+node --check plugins/codex-context-rollover/scripts/context-rollover.mjs
+node --test test/post-compact.test.mjs
+```
+
+## Remove
+
+```shell
 codex plugin remove codex-context-rollover
-codex plugin marketplace list
 ```
 
-If you previously installed a project-local `PostCompact` hook with the same behavior, disable or remove that duplicate before enabling this plugin globally. Codex runs all matching hooks, so keeping both would record and notify twice.
-
-## Development
-
-```shell
-npm test
-```
-
-The tests execute the real hook script in isolated temporary directories and cover successful checkpoints, repeated-compaction reminders, failed checkpoint recording, session isolation, and unrelated events. CI runs them on Windows, macOS, and Linux.
+If a project already has another `PostCompact` hook with the same behavior, disable that duplicate before enabling this plugin globally. Codex runs every matching hook.
 
 ## License
 

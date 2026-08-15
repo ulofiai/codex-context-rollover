@@ -1,4 +1,4 @@
-name: Test
+name: Cross-platform verification
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  verify-plugin:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -19,4 +19,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 20
-      - run: npm run check
+      - name: Syntax-check the installed hook
+        run: node --check plugins/codex-context-rollover/scripts/context-rollover.mjs
+      - name: Run behavior tests
+        run: node --test test/post-compact.test.mjs

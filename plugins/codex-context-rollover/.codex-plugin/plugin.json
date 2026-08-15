@@ -1,7 +1,7 @@
 {
   "name": "codex-context-rollover",
-  "version": "1.0.0",
-  "description": "Records Codex compaction checkpoints and recommends a clean /new task after repeated compaction.",
+  "version": "1.1.0",
+  "description": "Lossless one-command /clear handoff after repeated Codex compaction, anchored to exact user messages instead of another AI summary.",
   "author": {
     "name": "ulofiai",
     "url": "https://github.com/ulofiai"
@@ -17,11 +17,11 @@
   ],
   "interface": {
     "displayName": "Codex Context Rollover",
-    "shortDescription": "Detect repeated compaction and recommend /new",
-    "longDescription": "Records a verifiable transcript boundary after every Codex compaction. After repeated compaction, it warns about context distortion and task drift, then recommends starting a clean /new task.",
+    "shortDescription": "Lossless /clear handoff after repeated compaction",
+    "longDescription": "At the second Codex compaction, save an exact local transcript snapshot and arm a short-lived one-time handoff. When the user explicitly runs /clear, the clean session receives the original and latest exact user-message anchors\u2014without another AI summary, blocking hook, or stale carry-over into ordinary new tasks.",
     "developerName": "ulofiai",
     "category": "Productivity",
     "capabilities": [],
-    "defaultPrompt": "Explain the compaction checkpoint status for this Codex task."
+    "defaultPrompt": "Explain how the one-time /clear rollover preserves my exact objective after repeated compaction."
   }
 }
