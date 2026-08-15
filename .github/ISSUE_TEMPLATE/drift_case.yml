@@ -1,0 +1,49 @@
+name: Share a compaction drift case
+description: Describe where a long Codex task lost or changed an important objective.
+title: "[Drift case]: "
+labels:
+  - drift-case
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve real-world rollover behavior. Do not paste a real transcript, credential, token, private path, or proprietary source. Use a short synthetic example instead.
+  - type: textarea
+    id: original-objective
+    attributes:
+      label: Original objective A
+      description: What did you originally ask Codex to accomplish?
+      placeholder: "Example: Patch the existing parser without replacing its public API."
+    validations:
+      required: true
+  - type: textarea
+    id: drift
+    attributes:
+      label: What changed after compaction?
+      description: Which constraint disappeared, or what did objective A turn into?
+      placeholder: "After repeated compaction, the task started replacing the parser instead of patching it."
+    validations:
+      required: true
+  - type: input
+    id: count
+    attributes:
+      label: Approximate compaction count
+      placeholder: "2"
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: desired-anchor
+    attributes:
+      label: Which exact user message should have survived?
+      description: Write a synthetic or fully redacted version.
+    validations:
+      required: true

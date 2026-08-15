@@ -1,54 +1,76 @@
-# Codex Context Rollover
+<p align="center">
+  <img src="assets/social-preview.png" alt="Codex Context Rollover keeps objective A intact after repeated compaction" width="100%">
+</p>
 
-> Lossless, one-command handoff after repeated Codex compaction.
+<h1 align="center">Codex Context Rollover</h1>
 
-[![Cross-platform verification](https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml/badge.svg)](https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml)
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<p align="center"><strong>Keep objective A from quietly becoming B after repeated Codex compaction.</strong></p>
 
-[繁體中文](README.zh-TW.md)
+<p align="center">
+  <a href="https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml"><img src="https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml/badge.svg" alt="Cross-platform verification"></a>
+  <a href="https://github.com/ulofiai/codex-context-rollover/releases/latest"><img src="https://img.shields.io/github/v/release/ulofiai/codex-context-rollover?display_name=tag" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/dependencies-0-35c46a" alt="Zero package dependencies">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
 
-Codex can compact a long-running task more than once. Repeated summaries can drop constraints or blur the original objective, while the task still looks normal. Codex Context Rollover adds the missing transition signal:
+<p align="center">
+  <a href="README.zh-TW.md">繁體中文</a> ·
+  <a href="#install-in-two-commands">Install</a> ·
+  <a href="#what-happens-at-compaction-2">How it works</a> ·
+  <a href="https://github.com/ulofiai/codex-context-rollover/issues">Report a drift case</a>
+</p>
 
-**compaction #2 → exact transcript snapshot → `/clear` → clean session receives exact user anchors once**
+## The 10-second version
 
-No extra AI summary is generated during rollover. The handoff is anchored to verbatim original and recent user messages, so objective A is not reinterpreted into B by another summarization pass. There is no polling, prompt wrapper, background service, npm package, or cloud account; the plugin uses only Node.js built-in modules.
+A long Codex task can be summarized, then summarized again. The task still looks normal, but an original constraint disappears—or objective **A** quietly drifts into **B**.
 
-## The gap it fills
-
-| Codex alone | With Context Rollover |
-| --- | --- |
-| A compaction happens and work continues | The exact compaction count is tracked per task |
-| The next continuation depends on another summary | Compaction #2 saves an exact byte-for-byte transcript snapshot |
-| Clearing means manually rebuilding context | `/clear` receives the original and latest user-message anchors automatically |
-| A normal new task can accidentally inherit stale intent | Only explicit `source: clear` consumes the short-lived handoff; `/new` receives nothing |
-| Old recovery data can accumulate | Snapshot retention and handoff expiry clean themselves automatically |
-
-The default second-compaction message is intentionally direct:
-
-> Compaction #2: a lossless local rollover snapshot is armed. Run `/clear` within 30 minutes for a one-time handoff into a clean session. `/new` stays unrelated and receives no automatic carry-over.
-
-This is a **handoff, not a guardrail**. Every result contains `continue: true`. It does not stop compaction, interrupt tools, rewrite prompts, or inject an old objective into an ordinary new task.
+Context Rollover catches the second compaction and prepares a clean escape hatch:
 
 ```text
-PostCompact #2
-    └─ exact local snapshot + SHA-256 + verbatim user anchors
-         └─ short-lived, single-use handoff armed
-              ├─ /clear  → clean session receives handoff once
-              └─ /new    → receives nothing; remains unrelated
+A → summary → summary → B                     repeated-summary drift
+A → exact local snapshot → /clear → A         Context Rollover
 ```
 
-## Install on a clean computer
+- Saves a **byte-for-byte local transcript snapshot** with a SHA-256 boundary.
+- Carries the **verbatim original and latest user-message anchors**, not another AI-written summary.
+- Gives explicit `/clear` a **short-lived, one-time handoff** into a clean session.
+- Gives ordinary `/new` **nothing**, so an unrelated task cannot inherit stale intent.
+- Expires pending handoffs and prunes old snapshots automatically.
 
-Requirements: Codex with plugin/hooks support, Git, and Node.js 20 or newer. `npm install` is not used.
+No polling. No prompt wrapper. No background service. No cloud account. No telemetry. No package dependencies.
+
+## Install in two commands
+
+Requirements: Codex with plugin/hooks support, Git, and Node.js 20 or newer. There is no `npm install` step.
 
 ```shell
 codex plugin marketplace add ulofiai/codex-context-rollover
 codex plugin add codex-context-rollover@codex-context-rollover
 ```
 
-Restart Codex or open a new task, then run `/hooks` once to review and trust the command hook. Codex intentionally requires trust for third-party command hooks.
+Restart Codex or open a new task, then run `/hooks` once to review and trust the command hook. Codex requires this one-time review for third-party command hooks.
 
 That is the entire installation. There are no machine-specific paths, project files, credentials, databases, or previous state to migrate.
+
+## What happens at compaction #2
+
+```text
+PostCompact #2
+    └─ exact local snapshot + SHA-256 + verbatim user anchors
+         └─ short-lived, single-use handoff armed
+              ├─ /clear  → clean session receives the handoff once
+              └─ /new    → receives nothing and stays unrelated
+```
+
+The plugin never blocks compaction, interrupts tools, or rewrites prompts. Every hook result keeps Codex running with `continue: true`; the only user action is the explicit `/clear` that chooses to carry the current task forward.
+
+| Pain in a long task | What Context Rollover changes |
+| --- | --- |
+| You notice drift only after work goes wrong | The actual compaction count is recorded per task |
+| Recovery depends on yet another summary | The exact transcript boundary is preserved locally |
+| A clean session means rebuilding context by hand | `/clear` receives exact original and recent user anchors once |
+| Automatic carry-over can contaminate a new objective | `/new` is intentionally isolated |
+| Recovery files can accumulate forever | Retention and expiry clean them automatically |
 
 ## What is recorded
 

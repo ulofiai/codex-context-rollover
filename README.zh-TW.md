@@ -1,33 +1,58 @@
-# Codex Context Rollover
+<p align="center">
+  <img src="assets/social-preview.png" alt="Codex Context Rollover 在重複壓縮後仍讓目標 A 保持為 A" width="100%">
+</p>
 
-> 重複壓縮後，用一個 `/clear` 完成無損、一次性的乾淨接手。
+<h1 align="center">Codex Context Rollover</h1>
 
-[![跨平台驗證](https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml/badge.svg)](https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml)
-[![MIT 授權](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<p align="center"><strong>別讓 Codex 在重複壓縮後，悄悄把 A 做成 B。</strong></p>
 
-[English](README.md)
+<p align="center">
+  <a href="https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml"><img src="https://github.com/ulofiai/codex-context-rollover/actions/workflows/test.yml/badge.svg" alt="跨平台驗證"></a>
+  <a href="https://github.com/ulofiai/codex-context-rollover/releases/latest"><img src="https://img.shields.io/github/v/release/ulofiai/codex-context-rollover?display_name=tag" alt="最新版本"></a>
+  <img src="https://img.shields.io/badge/dependencies-0-35c46a" alt="零套件相依">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT 授權"></a>
+</p>
 
-Codex 的長任務可能不只壓縮一次。反覆摘要可能逐步遺失限制條件、模糊最初目標，但畫面上任務仍會正常繼續。Codex Context Rollover 補上缺少的轉折訊號：
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="#兩條指令安裝">安裝</a> ·
+  <a href="#第-2-次壓縮時會發生什麼">運作方式</a> ·
+  <a href="https://github.com/ulofiai/codex-context-rollover/issues">回報任務漂移案例</a>
+</p>
 
-**第 2 次壓縮 → 完整 transcript 快照 → `/clear` → 乾淨 session 一次性收到原始 user 指令錨點**
+## 10 秒看懂
 
-Rollover 過程不再呼叫另一個 AI 摘要。Handoff 直接錨定逐字的原始與最近 user 訊息，不讓已摘要過的 A 再被重述成 B。沒有輪詢、prompt wrapper、背景服務、npm 套件或雲端帳號；只使用 Node.js 內建模組。
+Codex 的長任務可能先被摘要一次，再拿摘要繼續摘要。任務表面上還在正常執行，原始限制卻可能消失，甚至讓目標 **A** 悄悄漂成 **B**。
 
-## 它補上的缺口
+Context Rollover 在第 2 次壓縮時準備一條乾淨的逃生路線：
 
-| 只有 Codex | 加上 Context Rollover |
-| --- | --- |
-| 壓縮發生後任務照常繼續 | 每個任務的實際壓縮次數都有記錄 |
-| 下一次延續仍依賴另一份摘要 | 第 2 次壓縮保存逐 byte 完整 transcript 快照 |
-| 清空後要自己重建 context | `/clear` 自動收到原始與最近 user 訊息錨點 |
-| 普通新任務可能誤接舊意圖 | 只有明確的 `source: clear` 消耗短時效 handoff；`/new` 完全不接 |
-| Recovery 資料可能越積越多 | 快照保留量與 handoff 過期會自動清理 |
+```text
+A → 摘要 → 再摘要 → B                         重複壓縮漂移
+A → 完整本機快照 → /clear → A                 Context Rollover
+```
 
-預設的第二次壓縮提醒刻意寫得很直接：
+- 保存具有 SHA-256 邊界的**逐 byte 本機 transcript 快照**。
+- 接手的是**最初與最近 user 訊息原文**，不是另一份 AI 重寫摘要。
+- 只有明確的 `/clear` 能消耗**短時效、一次性 handoff**，進入乾淨 session。
+- 普通 `/new` **完全不接舊任務**，避免 A 污染不相關的 B。
+- Pending handoff 會過期，舊快照也會依保留量自動清理。
 
-> 第 2 次內容壓縮：完整 transcript 邊界快照已保存。請在 30 分鐘內執行 `/clear`；乾淨 session 會一次性接收原始目標與最近指令。`/new` 維持完全獨立，不會自動注入舊任務。
+沒有輪詢、prompt wrapper、背景服務、雲端帳號、telemetry 或套件相依。
 
-它是**handoff，不是護欄**。所有結果都包含 `continue: true`；不會停止壓縮、中斷工具、改寫 prompt，也不會把舊目標偷偷灌進普通新任務。
+## 兩條指令安裝
+
+需求只有支援外掛／hooks 的 Codex、Git，以及 Node.js 20 或更新版本。沒有 `npm install` 步驟。
+
+```shell
+codex plugin marketplace add ulofiai/codex-context-rollover
+codex plugin add codex-context-rollover@codex-context-rollover
+```
+
+重新啟動 Codex 或開新任務，執行一次 `/hooks`，檢查並信任 command hook。Codex 對第三方 command hook 會要求這一次檢查。
+
+安裝到此結束。不需要搬移任何本機路徑、專案檔案、credential、資料庫或舊 state。
+
+## 第 2 次壓縮時會發生什麼
 
 ```text
 PostCompact #2
@@ -37,18 +62,15 @@ PostCompact #2
               └─ /new    → 完全不接，維持獨立
 ```
 
-## 在全新電腦安裝
+外掛不會停止壓縮、中斷工具或改寫 prompt。每次 hook 結果都以 `continue: true` 讓 Codex 繼續；唯一需要使用者做的事，就是用明確的 `/clear` 選擇接手目前任務。
 
-需求只有支援外掛／hooks 的 Codex、Git，以及 Node.js 20 或更新版本。完全不需要 `npm install`。
-
-```shell
-codex plugin marketplace add ulofiai/codex-context-rollover
-codex plugin add codex-context-rollover@codex-context-rollover
-```
-
-重新啟動 Codex 或開新任務，執行一次 `/hooks`，檢查並信任 command hook。Codex 對第三方命令 hook 原本就要求這次信任。
-
-安裝到此結束。不需要搬移任何本機路徑、專案檔案、credential、資料庫或舊 state。
+| 長任務的痛點 | Context Rollover 改變了什麼 |
+| --- | --- |
+| 做歪以後才發現任務已經漂移 | 每個任務的實際壓縮次數都有記錄 |
+| Recovery 還要依靠另一份摘要 | 精確 transcript 邊界完整保存在本機 |
+| 乾淨 session 要自己重建 context | `/clear` 一次性收到最初與最近 user 訊息原文 |
+| 自動接手可能把舊目標灌進新任務 | `/new` 刻意維持完全隔離 |
+| Recovery 資料可能一直累積 | 保留量與過期機制會自動清理 |
 
 ## 它記錄什麼
 
