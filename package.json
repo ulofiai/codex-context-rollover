@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "check": "node --check plugins/codex-context-rollover/scripts/post-compact.mjs && npm test",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/post-compact.test.mjs"
   },
   "engines": {
     "node": ">=20"
