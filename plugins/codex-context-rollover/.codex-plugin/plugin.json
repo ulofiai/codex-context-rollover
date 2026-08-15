@@ -1,0 +1,27 @@
+{
+  "name": "codex-context-rollover",
+  "version": "1.0.0",
+  "description": "Records Codex compaction checkpoints and recommends a clean /new task after repeated compaction.",
+  "author": {
+    "name": "ulofiai",
+    "url": "https://github.com/ulofiai"
+  },
+  "homepage": "https://github.com/ulofiai/codex-context-rollover",
+  "repository": "https://github.com/ulofiai/codex-context-rollover",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "hooks",
+    "compaction",
+    "context"
+  ],
+  "interface": {
+    "displayName": "Codex Context Rollover",
+    "shortDescription": "Detect repeated compaction and recommend /new",
+    "longDescription": "Records a verifiable transcript boundary after every Codex compaction. After repeated compaction, it warns about context distortion and task drift, then recommends starting a clean /new task.",
+    "developerName": "ulofiai",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": "Explain the compaction checkpoint status for this Codex task."
+  }
+}
